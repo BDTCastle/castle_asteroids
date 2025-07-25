@@ -9,24 +9,30 @@ def main():
     clock = pygame.time.Clock()
     dt = 0
 
+    # Create sprite groups
+    updatable = pygame.sprite.Group()
+    drawable = pygame.sprite.Group()
+
+    # Set the containers for the Player class
+    Player.containers = (updatable, drawable)
+    
     player = Player(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
 
     while True:
-        # 1. Handle user input (events)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return
 
-        # 2. Draw the game world
+        # Update all sprites in the 'updatable' group
+        updatable.update(dt)
+
+        # Draw the game world
         screen.fill("black")
-
-        # Draw the player
-        player.draw(screen)
-
-        # 3. Update the display
+        for sprite in drawable:
+            sprite.draw(screen)
+        
         pygame.display.flip()
 
-        # 4. Limit the frame rate and get delta time
         dt = clock.tick(60) / 1000
 
 if __name__ == "__main__":
