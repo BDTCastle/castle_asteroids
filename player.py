@@ -1,6 +1,6 @@
 import pygame
 from circleshape import CircleShape
-from constants import PLAYER_RADIUS, PLAYER_TURN_SPEED, PLAYER_SPEED, PLAYER_SHOOT_SPEED, PLAYER_SHOOT_COOLDOWN
+from constants import *
 from shot import Shot
 
 class Player(CircleShape):
@@ -8,6 +8,26 @@ class Player(CircleShape):
         super().__init__(x, y, PLAYER_RADIUS)
         self.rotation = 0
         self.shoot_timer = 0
+        self.invincibility_timer = PLAYER_INVINCIBILITY_TIME
+        self.speed_boost_timer = 0
+        self.acceleration = PLAYER_ACCELERATION
+
+    def reset(self):
+        self.position = pygame.Vector2(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+        self.velocity = pygame.Vector2(0, 0)
+        self.invincibility_timer = PLAYER_INVINCIBILITY_TIME
+
+
+    def activate_speed_boost(self):
+        self.speed_boost_timer = 5.0 # 5 seconds of boost
+        self.acceleration = PLAYER_ACCELERATION * 2
+
+    def accelerate(self, dt):
+        forward = pygame.Vector2(0, 1).rotate(self.rotation)
+        self.velocity += forward * self.acceleration * dt
+
+    def rotate(self, dt):
+        self.rotation += PLAYER_TURN_SPEED * dt
 
     def shoot(self):
         self.shoot_timer = PLAYER_SHOOT_COOLDOWN
@@ -15,27 +35,50 @@ class Player(CircleShape):
         velocity = pygame.Vector2(0, 1).rotate(self.rotation) * PLAYER_SHOOT_SPEED
         shot.velocity = velocity
 
-    def rotate(self, dt):
-        self.rotation += PLAYER_TURN_SPEED * dt
-    
-    def move(self, dt):
-        forward = pygame.Vector2(0, 1).rotate(self.rotation)
-        self.position += forward * PLAYER_SPEED * dt
-
     def update(self, dt):
-        self.shoot_timer -= dt
 
+        # --- NEW: Speed boost timer ---
+        if self.speed_boost_timer > 0:
+            self.speed_boost_timer -= dt
+            if self.speed_boost_timer <= 0:
+                self.acceleration = PLAYER_ACCELERATION # Reset to normal
+        # Timers
+        self.shoot_timer -= dt
+        self.invincibility_timer -= dt
+        if self.speed_boost_timer > 0:
+            self.speed_boost_timer -= dt
+            if self.speed_boost_timer <= 0:
+                self.acceleration = PLAYER_ACCELERATION
+        
+        # Physics
+        self.velocity *= PLAYER_FRICTION
+        super().update(dt) # This handles movement and screen wrapping
+
+        # --- Mouse Aiming ---
+        mouse_pos = pygame.mouse.get_pos()
+        direction_vector = pygame.Vector2(mouse_pos) - self.position
+        self.rotation = pygame.Vector2(0, 1).angle_to(direction_vector)
+
+        # Input
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_a]:
-            self.rotate(dt)
-        if keys[pygame.K_d]:
-            self.rotate(-dt)
+        right_vector = pygame.Vector2(0, 1).rotate(self.rotation + 90)
+        if keys[pygame.K_a]: # Strafe Left
+            self.velocity -= right_vector * self.acceleration * dt * 0.5
+        if keys[pygame.K_d]: # Strafe Right
+            self.velocity += right_vector * self.acceleration * dt * 0.5
         if keys[pygame.K_w]:
-            self.move(dt)
+            self.accelerate(dt)
         if keys[pygame.K_s]:
-            self.move(-dt)
-        if keys[pygame.K_SPACE] and self.shoot_timer <= 0:
-            self.shoot()
+            self.accelerate(-dt)
+
+    def draw(self, screen):
+        # Change color based on invincibility
+        if self.invincibility_timer > 0:
+            color = "yellow"
+        else:
+            color = "white"
+        
+        pygame.draw.polygon(screen, color, self.triangle(), 2)
 
     def triangle(self):
         forward = pygame.Vector2(0, 1).rotate(self.rotation)
@@ -44,6 +87,3 @@ class Player(CircleShape):
         b = self.position - forward * self.radius - right
         c = self.position - forward * self.radius + right
         return [a, b, c]
-
-    def draw(self, screen):
-        pygame.draw.polygon(screen, "white", self.triangle(), 2)
